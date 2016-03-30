@@ -204,13 +204,22 @@ public class Bus {
         if (object == null) {
             throw new NullPointerException("Object to register must not be null.");
         }
+        /**
+         * 首先验证该bus类，默认为ThreadEnforcer.MAIN：
+         * 1、{@link ThreadEnforcer#ANY} 不做验证
+         * 2、{@link ThreadEnforcer#MAIN} 限制是主线程
+         */
         enforcer.enforce(this);
 
+        //@mark 寻找所有的Produce注解
         Map<Class<?>, EventProducer> foundProducers = handlerFinder.findAllProducers(object);
         for (Class<?> type : foundProducers.keySet()) {
 
             final EventProducer producer = foundProducers.get(type);
             EventProducer previousProducer = producersByType.putIfAbsent(type, producer);
+            /**
+             * @mark 检查之前的Producer已经注册
+             */
             //checking if the previous producer existed
             if (previousProducer != null) {
                 throw new IllegalArgumentException("Producer method for type " + type
@@ -220,11 +229,17 @@ public class Bus {
             Set<EventHandler> handlers = handlersByType.get(type);
             if (handlers != null && !handlers.isEmpty()) {
                 for (EventHandler handler : handlers) {
+                    /**
+                     * @mark 通过eventType获取所有的EventHandler，然后进行分发（即通过反射调用被注解的方法）
+                     */
                     dispatchProducerResultToHandler(handler, producer);
                 }
             }
         }
 
+        /*
+         * 以下处理 @SubScribe 逻辑
+         */
         Map<Class<?>, Set<EventHandler>> foundHandlersMap = handlerFinder.findAllSubscribers(object);
         for (Class<?> type : foundHandlersMap.keySet()) {
             Set<EventHandler> handlers = handlersByType.get(type);
@@ -285,6 +300,9 @@ public class Bus {
         }
         enforcer.enforce(this);
 
+        /**
+         * @mark 拿到所有@Produce事件的缓存信息，从缓存中删除并设置为无效
+         */
         Map<Class<?>, EventProducer> producersInListener = handlerFinder.findAllProducers(object);
         for (Map.Entry<Class<?>, EventProducer> entry : producersInListener.entrySet()) {
             final Class<?> key = entry.getKey();
@@ -299,6 +317,9 @@ public class Bus {
             producersByType.remove(key).invalidate();
         }
 
+        /**
+         * @mark 拿到所有@Subscribe事件的缓存信息集合，逐个设置为无效并从缓存中全部移除
+         */
         Map<Class<?>, Set<EventHandler>> handlersInListener = handlerFinder.findAllSubscribers(object);
         for (Map.Entry<Class<?>, Set<EventHandler>> entry : handlersInListener.entrySet()) {
             Set<EventHandler> currentHandlers = getHandlersForEventType(entry.getKey());
@@ -334,16 +355,24 @@ public class Bus {
             throw new NullPointerException("Event to post must not be null.");
         }
         enforcer.enforce(this);
-
+        /**
+         * @mark 获取“该事件”和“该事件所有父类”的所有集合
+         */
         Set<Class<?>> dispatchTypes = flattenHierarchy(event.getClass());
 
         boolean dispatched = false;
         for (Class<?> eventType : dispatchTypes) {
+            /**
+             * @mark 获取所有eventType的缓存
+             */
             Set<EventHandler> wrappers = getHandlersForEventType(eventType);
 
             if (wrappers != null && !wrappers.isEmpty()) {
                 dispatched = true;
                 for (EventHandler wrapper : wrappers) {
+                    /**
+                     * @mark 把处理对象压入事件队列
+                     */
                     enqueueEvent(event, wrapper);
                 }
             }
@@ -352,7 +381,9 @@ public class Bus {
         if (!dispatched && !(event instanceof DeadEvent)) {
             post(new DeadEvent(this, event));
         }
-
+        /**
+         * @mark 执行事件队列
+         */
         dispatchQueuedEvents();
     }
 
