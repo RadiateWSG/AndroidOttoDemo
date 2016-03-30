@@ -27,6 +27,13 @@ import java.lang.reflect.Method;
  *
  * @author Jake Wharton
  */
+
+/**
+ * 包装了Produce方法的对象：
+ * {@link EventProducer#target}：目标类
+ * {@link EventProducer#method}：@Produce方法
+ * 并提供{@link EventProducer#produceEvent()}方法，通过反射调用方法。
+ */
 class EventProducer {
 
   /** Object sporting the producer method. */
