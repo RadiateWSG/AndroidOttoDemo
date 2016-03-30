@@ -33,6 +33,10 @@ import java.util.concurrent.ConcurrentMap;
  * @author Louis Wasserman
  * @author Jake Wharton
  */
+
+/**
+ * 寻找注解@Produce和@Subscribe的所有方法，并缓存。
+ */
 final class AnnotatedHandlerFinder {
 
     /**
@@ -65,32 +69,51 @@ final class AnnotatedHandlerFinder {
      */
     private static void loadAnnotatedMethods(Class<?> listenerClass,
                                              Map<Class<?>, Method> producerMethods, Map<Class<?>, Set<Method>> subscriberMethods) {
+        /**
+         * @mark 遍历类中的所有方法
+         */
         for (Method method : listenerClass.getDeclaredMethods()) {
             // The compiler sometimes creates synthetic bridge methods as part of the
             // type erasure process. As of JDK8 these methods now include the same
             // annotations as the original declarations. They should be ignored for
             // subscribe/produce.
+            /**
+             * @mark 判断方式是否桥接，泛型有关
+             */
             if (method.isBridge()) {
                 continue;
             }
+            /**
+             * @mark 如果方法的当前注解是 @Subscribe
+             */
             if (method.isAnnotationPresent(Subscribe.class)) {
                 Class<?>[] parameterTypes = method.getParameterTypes();
+                /**
+                 * @mark 验证方法参数的个数必须为1，否则抛出异常
+                 */
                 if (parameterTypes.length != 1) {
                     throw new IllegalArgumentException("Method " + method + " has @Subscribe annotation but requires "
                             + parameterTypes.length + " arguments.  Methods must require a single argument.");
                 }
 
                 Class<?> eventType = parameterTypes[0];
+                /**
+                 * @mark 验证参数类型不为接口，如果是接口抛出异常
+                 */
                 if (eventType.isInterface()) {
                     throw new IllegalArgumentException("Method " + method + " has @Subscribe annotation on " + eventType
                             + " which is an interface.  Subscription must be on a concrete class type.");
                 }
-
+                /**
+                 * @mark 验证方法修饰必须为public，否则抛出异常
+                 */
                 if ((method.getModifiers() & Modifier.PUBLIC) == 0) {
                     throw new IllegalArgumentException("Method " + method + " has @Subscribe annotation on " + eventType
                             + " but is not 'public'.");
                 }
-
+                /**
+                 * @mark 把该methods信息放到相同参数类型的集合里
+                 */
                 Set<Method> methods = subscriberMethods.get(eventType);
                 if (methods == null) {
                     methods = new HashSet<Method>();
@@ -98,30 +121,49 @@ final class AnnotatedHandlerFinder {
                 }
                 methods.add(method);
             } else if (method.isAnnotationPresent(Produce.class)) {
+                /**
+                 * @mark 如果方法的当前注解是 @Produce
+                 */
                 Class<?>[] parameterTypes = method.getParameterTypes();
+                /**
+                 * @mark 同样验证方法参数的个数必须为1
+                 */
                 if (parameterTypes.length != 0) {
                     throw new IllegalArgumentException("Method " + method + "has @Produce annotation but requires "
                             + parameterTypes.length + " arguments.  Methods must require zero arguments.");
                 }
+                /**
+                 * @mark 且方法的返回类型不为Void
+                 */
                 if (method.getReturnType() == Void.class) {
                     throw new IllegalArgumentException("Method " + method
                             + " has a return type of void.  Must declare a non-void type.");
                 }
 
                 Class<?> eventType = method.getReturnType();
+                /**
+                 * @mark 方法的返回类型不是Interface
+                 */
                 if (eventType.isInterface()) {
                     throw new IllegalArgumentException("Method " + method + " has @Produce annotation on " + eventType
                             + " which is an interface.  Producers must return a concrete class type.");
                 }
+                /**
+                 * @mark 方法的返回类型不是Void
+                 */
                 if (eventType.equals(Void.TYPE)) {
                     throw new IllegalArgumentException("Method " + method + " has @Produce annotation but has no return type.");
                 }
-
+                /**
+                 * @mark 验证方法修饰必须为public，否则抛出异常
+                 */
                 if ((method.getModifiers() & Modifier.PUBLIC) == 0) {
                     throw new IllegalArgumentException("Method " + method + " has @Produce annotation on " + eventType
                             + " but is not 'public'.");
                 }
-
+                /**
+                 * @mark 验证该类型是否已经注册
+                 */
                 if (producerMethods.containsKey(eventType)) {
                     throw new IllegalArgumentException("Producer for type " + eventType + " has already been registered.");
                 }
@@ -129,6 +171,9 @@ final class AnnotatedHandlerFinder {
             }
         }
 
+        /**
+         * 缓存 @Prodece和@Subscribe 的方法信息
+         */
         PRODUCERS_CACHE.put(listenerClass, producerMethods);
         SUBSCRIBERS_CACHE.put(listenerClass, subscriberMethods);
     }
