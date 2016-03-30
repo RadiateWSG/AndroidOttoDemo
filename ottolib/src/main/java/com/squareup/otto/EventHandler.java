@@ -31,6 +31,12 @@ import java.lang.reflect.Method;
  *
  * @author Cliff Biffle
  */
+/**
+ * 包装了Subscribe方法的对象：
+ * {@link EventHandler#target}：目标类
+ * {@link EventHandler#method}：@Subscribe方法
+ * 并提供{@link EventHandler#handleEvent(Object)}方法，通过反射调用方法。
+ */
 class EventHandler {
 
   /** Object sporting the handler method. */
